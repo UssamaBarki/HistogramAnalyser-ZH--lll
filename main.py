@@ -15,11 +15,19 @@ import param
 
 pn.extension()
 
+# ----------------------------------------------------------------------------------
+# Data Loading and Preprocessing
+# ----------------------------------------------------------------------------------
+
 def load_and_tag(path: str, label: str) -> pd.DataFrame:
+    """
+    Load CSV data from 'path' and add a 'Process' column with given label.
+    """
     df = pd.read_csv(path)
     df["Process"] = label
     return df
 
+# Load and concatenate all datasets with respective process labels
 df = pd.concat([
     load_and_tag("DM_200.csv", "ZH→inv"),
     load_and_tag("ZZ.csv", "ZZ"),
@@ -28,6 +36,7 @@ df = pd.concat([
     load_and_tag("Non-resonant_ll.csv", "Non-resonant ℓℓ")
 ], ignore_index=True).dropna()
 
+# Standardize column names for convenience
 df.rename(columns={
     "mll": "Mll",
     "ETmiss": "MET",
@@ -40,8 +49,14 @@ df.rename(columns={
     "N_bjets": "BTags"
 }, inplace=True)
 
+# Add a constant channel column (used in analysis/plots)
 df["Channel"] = "ℓℓ"
 
+# ---------------------------------------------------------------
+# Configuration for histogram plotting and process colors
+# ---------------------------------------------------------------
+
+# Define columns to plot with default cut ranges 
 PLOT_COLUMNS = {
     "Dilepton mass [GeV]": ("Mll", (76, 106)),
     "Missing ET [GeV]": ("MET", (90, df.MET.max())),
@@ -55,6 +70,8 @@ PLOT_COLUMNS = {
     "Sum lep charge": ("sum_lep_charge", None),
 }
 
+
+# Colors for each process
 PROCESS_COLORS = {
     "ZH→inv": "forestgreen",
     "ZZ": "firebrick",
@@ -64,20 +81,40 @@ PROCESS_COLORS = {
 }
 
 PROCESS_LIST = list(PROCESS_COLORS.keys())
+
+# Precompute total counts for each process (used for percentage bars)
 FULL_COUNTS = {proc: int((df.Process == proc).sum()) for proc in PROCESS_LIST}
 
 def make_histogram(data: pd.DataFrame, column: str, edges: np.ndarray) -> np.ndarray:
+    """
+    Create a histogram of 'column' in 'data' using specified 'edges'.
+    If 'totalWeight' exists, use it as weights; else unweighted.
+    """
     weights = data.get("totalWeight", None)
     hist, _ = np.histogram(data[column], bins=edges, weights=weights)
     return hist
 
+# ----------------------------------------------------------------------------------
+# Dashboard Class
+# ----------------------------------------------------------------------------------
 class CrossFilteringHist(param.Parameterized):
+    """
+    Interactive dashboard class with cross-filtering histograms using Bokeh and Panel.
+    Allows selection of processes and filtering on variables with sliders.
+    Updates histograms and statistics dynamically based on filters.
+    """
+
     processes = param.List(default=PROCESS_LIST.copy())
 
     def _on_change(self, *events):
+        """
+        Main update function called when any widget or selection changes.
+        Updates pie chart, counts display, and histograms.
+        """
         mask = self._compute_mask()
         sel = self.proc_sel.value
 
+        # Calculate signal and background counts for significance metric
         signal_count = int(((df.Process == "ZH→inv") & mask).sum())
         background_count = int((df.Process.isin([k for k in PROCESS_COLORS if k != "ZH→inv"]) & mask).sum())
         significance = signal_count / np.sqrt(background_count) if background_count else 0
@@ -90,13 +127,15 @@ class CrossFilteringHist(param.Parameterized):
     def __init__(self, **params):
         super().__init__(**params)
 
+        # Div element to display event counts and significance info
         self.count_div = Div()
+        # Holds BoxAnnotations (shaded regions) for histograms to indicate filtering range
         self.shadows = {}
         self.sources = {}
         self.labels = {}
         self.max_y_seen = {}
 
-        # Stylish toggle buttons for processes
+        # Toggle buttons for processes
         self.proc_sel = pn.widgets.ToggleGroup(
             name="Processes",
             options=self.processes,
@@ -113,15 +152,26 @@ class CrossFilteringHist(param.Parameterized):
         )
         self.slider_toggle.param.watch(self._toggle_sliders, 'value')
 
+        # Dictionary to hold widgets (sliders or checkbox groups) keyed by plot title
         self.widgets = {}
+
+        # Dictionary to hold figures and related histogram bin info keyed by plot title
         self.figs = {}
 
+        # Initialize pie chart and histograms
         self._init_pie_chart()
         self._init_histograms()
+
+        # Initial update to sync visuals
         self._on_change()
+
+        # Compose layout
         self.layout = self._make_layout()
 
     def _toggle_sliders(self, event):
+        """
+        Allows the user to turn on/off sliders.
+        """
         show = event.new
         for title, widget in self.widgets.items():
             if title == "Sum lep charge":
@@ -129,7 +179,11 @@ class CrossFilteringHist(param.Parameterized):
                 continue
             widget.visible = show
 
+
     def _init_pie_chart(self):
+        """
+        Initialize pie chart to show process contributions.
+        """
         self.pie_source = ColumnDataSource(dict(process=[], value=[], angle=[], color=[]))
         self.pie = figure(
             height=300, width=300,
@@ -149,10 +203,15 @@ class CrossFilteringHist(param.Parameterized):
         self.pie.grid.visible = False
 
     def _init_histograms(self):
+        """
+        Initialize histogram figures and their corresponding filter widgets.
+        """
+        # Columns with known negative values in Zjets to consider for slider min range
         cols_allow_neg = ["lep1_pt", "Mll", "frac_pt_diff", "MET_sig"]
 
         for title, (col, _) in PLOT_COLUMNS.items():
             if col == "sum_lep_charge":
+                # Categorical variable with fixed bins and checkboxes
                 edges = np.array([-3, -1, 1, 3])
                 mids = np.array([-2, 0, 2])
                 width = 2
@@ -170,7 +229,10 @@ class CrossFilteringHist(param.Parameterized):
                 )
 
             else:
+                # Calculate slider range: default min/max from full df
                 lo, hi = df[col].min(), df[col].max()
+
+                # If this col is in cols_allow_neg, check Zjets subset for min negative values
                 if col in cols_allow_neg:
                     zjets_vals = df.loc[df.Process == "Zjets", col]
                     if len(zjets_vals):
@@ -181,6 +243,8 @@ class CrossFilteringHist(param.Parameterized):
                 edges = np.linspace(lo, hi, num_bins + 1)
                 mids = (edges[:-1] + edges[1:]) / 2
                 width = (edges[1] - edges[0]) * 0.9
+
+                # Range slider for continuous variables
                 widget = pn.widgets.RangeSlider(
                     name=title, start=lo, end=hi,
                     value=(lo, hi),
@@ -188,8 +252,10 @@ class CrossFilteringHist(param.Parameterized):
                     width=300
                 )
                 widget.visible = True
+            # Watch for changes to slider or checkbox to update filtering
             widget.param.watch(self._on_change, 'value')
 
+            # Create histogram figure
             fig = figure(title=title, width=300, height=240, tools="reset")
             fig.toolbar.logo = None
             fig.xaxis.axis_label = title
@@ -198,6 +264,7 @@ class CrossFilteringHist(param.Parameterized):
             fig.y_range = Range1d(0, 1)
             self.max_y_seen[title] = 1
 
+            # For continuous variables add box select tools and shaded filters
             if col != "sum_lep_charge":
                 fig.add_tools(BoxSelectTool(dimensions="width"))
                 cb = self._make_select_cb(title, edges, widget)
@@ -223,6 +290,9 @@ class CrossFilteringHist(param.Parameterized):
             self.figs[title] = (fig, edges, mids, width)
 
     def _make_select_cb(self, title, edges, widget):
+        """
+        Creates a callback for box select and reset events to update the slider widget.
+        """
         def callback(event):
             if hasattr(event, 'geometry'):
                 lo, hi = sorted((event.geometry["x0"], event.geometry["x1"]))
@@ -236,16 +306,25 @@ class CrossFilteringHist(param.Parameterized):
         return callback
 
     def _compute_mask(self) -> pd.Series:
+        """
+        Compute boolean mask filtering dataframe according to
+        selected processes and slider/checkbox widget values.
+        """
         mask = df.Process.isin(self.proc_sel.value)
         for title, (col, _) in PLOT_COLUMNS.items():
             widget = self.widgets[title]
             if col == "sum_lep_charge":
+                # For categorical, filter exact matches
                 mask &= df[col].isin(widget.value)
             else:
+                # For continuous, filter by slider range
                 mask &= df[col].between(*widget.value)
         return mask
 
     def _update_pie_chart(self, mask: pd.Series, selected_processes: list):
+        """
+        Update pie chart data source according to filtered data.
+        """
         counts = {proc: int(((df.Process == proc) & mask).sum()) for proc in selected_processes}
         pie_df = pd.Series(counts).reset_index(name='value').rename(columns={'index': 'process'})
         pie_df = pie_df[pie_df.value > 0]
@@ -255,6 +334,9 @@ class CrossFilteringHist(param.Parameterized):
         self.pie_source.data = pie_df.to_dict(orient='list')
 
     def _update_count_div(self, mask: pd.Series, significance: float, significance_pct: int):
+        """
+        Update HTML div displaying counts and significance metric.
+        """
         total_events = int(mask.sum())
         html = [f"<h3>Total Events: {total_events}</h3>"]
 
@@ -284,11 +366,15 @@ class CrossFilteringHist(param.Parameterized):
         self.count_div.text = ''.join(html)
 
     def _update_histograms(self, mask: pd.Series, selected_processes: list, events):
+        """
+        Update each histogram's bars, axis ranges, and shaded filters based on current selection.
+        """
         for title, (col, _) in PLOT_COLUMNS.items():
             fig, edges, mids, width = self.figs[title]
             widget = self.widgets[title]
             source = self.sources[title]
 
+            # Prepare histogram data for selected processes
             data = {"x": mids}
             for proc in PROCESS_LIST:
                 if proc in selected_processes:
@@ -298,6 +384,7 @@ class CrossFilteringHist(param.Parameterized):
                     data[proc] = np.zeros_like(mids)
             source.data = data
 
+            # Update shaded filter boxes on histogram if applicable
             if title in self.shadows:
                 left_shadow, right_shadow = self.shadows[title]
                 left_shadow.right = widget.value[0]
@@ -311,9 +398,14 @@ class CrossFilteringHist(param.Parameterized):
                     self.max_y_seen[title] = fig.y_range.end
 
     def _make_layout(self) -> pn.Column:
+        """
+        Arrange widgets and figures into a Panel layout.
+        Two histograms per row, plus top row with counts, process selector, and pie chart.
+        """
         rows = []
         titles = list(PLOT_COLUMNS)
 
+        # Arrange histograms in rows of two columns
         for i in range(0, len(titles), 2):
             col1 = pn.Column(self.figs[titles[i]][0], self.widgets[titles[i]])
             if i + 1 < len(titles):
@@ -322,6 +414,7 @@ class CrossFilteringHist(param.Parameterized):
             else:
                 rows.append(col1)
 
+        # Top row with counts, process selection checkboxes, and pie chart
         top_row = pn.Row(
             pn.Column(self.count_div, self.proc_sel, self.slider_toggle),
             pn.Column(self.pie),
@@ -331,6 +424,7 @@ class CrossFilteringHist(param.Parameterized):
         return pn.Column(top_row, *rows, sizing_mode="stretch_width")
 
 def main():
+    # Instantiate the dashboard and expose its layout for rendering
     dashboard = CrossFilteringHist()
     dashboard.layout.servable()
     pn.serve(dashboard.layout, title="Cross Filtering Histogram Dashboard")
