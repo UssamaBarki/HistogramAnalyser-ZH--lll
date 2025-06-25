@@ -1,5 +1,3 @@
-# Cross Filtering Histogram Dashboard (Optimized with Fix 1)
-
 import numpy as np
 import pandas as pd
 from math import pi
@@ -7,7 +5,7 @@ from math import pi
 from bokeh.plotting import figure
 from bokeh.models import (
     ColumnDataSource, Div, Range1d, BoxAnnotation,
-    BoxSelectTool
+    BoxSelectTool, Label
 )
 from bokeh.events import SelectionGeometry, DoubleTap, Reset
 from bokeh.transform import cumsum
@@ -22,7 +20,6 @@ def load_and_tag(path: str, label: str) -> pd.DataFrame:
     df["Process"] = label
     return df
 
-# Load and merge datasets
 df = pd.concat([
     load_and_tag("DM_200.csv", "ZH→inv"),
     load_and_tag("ZZ.csv", "ZZ"),
@@ -31,7 +28,6 @@ df = pd.concat([
     load_and_tag("Non-resonant_ll.csv", "Non-resonant ℓℓ")
 ], ignore_index=True).dropna()
 
-# Rename columns
 df.rename(columns={
     "mll": "Mll",
     "ETmiss": "MET",
@@ -52,9 +48,9 @@ PLOT_COLUMNS = {
     "MET/HT (sig.)": ("MET_sig", (0.9, df.MET_sig.max())),
     "ΔR(ℓℓ)": ("deltaR_ll", (0, 1.8)),
     "Δϕ(ℓℓ,MET)": ("dphi_ll_met", (2.6, df.dphi_ll_met.max())),
-    "Frac. pₐ diff": ("frac_pt_diff", (0, 0.3)),
-    "Lead ℓ pₐ [GeV]": ("lep1_pt", (30, df.lep1_pt.max())),
-    "Sublead ℓ pₐ [GeV]": ("lep2_pt", (20, df.lep2_pt.max())),
+    "Frac. pₜ diff": ("frac_pt_diff", (0, 0.3)),
+    "Lead ℓ pₜ [GeV]": ("lep1_pt", (30, df.lep1_pt.max())),
+    "Sublead ℓ pₜ [GeV]": ("lep2_pt", (20, df.lep2_pt.max())),
     "B-tags": ("BTags", (0, int(df.BTags.max()))),
     "Sum lep charge": ("sum_lep_charge", None),
 }
@@ -78,17 +74,44 @@ def make_histogram(data: pd.DataFrame, column: str, edges: np.ndarray) -> np.nda
 class CrossFilteringHist(param.Parameterized):
     processes = param.List(default=PROCESS_LIST.copy())
 
+    def _on_change(self, *events):
+        mask = self._compute_mask()
+        sel = self.proc_sel.value
+
+        signal_count = int(((df.Process == "ZH→inv") & mask).sum())
+        background_count = int((df.Process.isin([k for k in PROCESS_COLORS if k != "ZH→inv"]) & mask).sum())
+        significance = signal_count / np.sqrt(background_count) if background_count else 0
+        significance_pct = int(min(significance, 5) / 5 * 100)
+
+        self._update_pie_chart(mask, sel)
+        self._update_count_div(mask, significance, significance_pct)
+        self._update_histograms(mask, sel, events)
+
     def __init__(self, **params):
         super().__init__(**params)
 
         self.count_div = Div()
         self.shadows = {}
         self.sources = {}
+        self.labels = {}
+        self.max_y_seen = {}
 
-        self.proc_sel = pn.widgets.CheckBoxGroup(
-            name="Processes", options=self.processes, value=self.processes.copy(), inline=True
+        # Stylish toggle buttons for processes
+        self.proc_sel = pn.widgets.ToggleGroup(
+            name="Processes",
+            options=self.processes,
+            value=self.processes.copy(),
+            button_type='success',
+            width=400,
+            sizing_mode='fixed',
         )
         self.proc_sel.param.watch(self._on_change, 'value')
+
+        # Toggle button to show/hide sliders
+        self.slider_toggle = pn.widgets.Toggle(
+            name='Show Filters', button_type='primary', value=True
+        )
+        self.slider_toggle.param.watch(self._toggle_sliders, 'value')
 
         self.widgets = {}
         self.figs = {}
@@ -98,9 +121,23 @@ class CrossFilteringHist(param.Parameterized):
         self._on_change()
         self.layout = self._make_layout()
 
+    def _toggle_sliders(self, event):
+        show = event.new
+        for title, widget in self.widgets.items():
+            if title == "Sum lep charge":
+                # sum lep charge toggle always visible
+                continue
+            widget.visible = show
+
     def _init_pie_chart(self):
         self.pie_source = ColumnDataSource(dict(process=[], value=[], angle=[], color=[]))
-        self.pie = figure(height=300, width=300, toolbar_location=None, tools="hover", tooltips="@process: @value")
+        self.pie = figure(
+            height=300, width=300,
+            toolbar_location=None,
+            tools="hover",
+            tooltips="@process: @value"
+        )
+        self.pie.toolbar.logo = None
         self.pie.wedge(
             x=0, y=1, radius=0.4,
             start_angle=cumsum('angle', include_zero=True),
@@ -119,7 +156,19 @@ class CrossFilteringHist(param.Parameterized):
                 edges = np.array([-3, -1, 1, 3])
                 mids = np.array([-2, 0, 2])
                 width = 2
-                widget = pn.widgets.CheckBoxGroup(name=title, options=[-2, 0, 2], value=[-2, 0, 2], inline=True)
+
+                # Centered, spaced toggle buttons for sum_lep_charge
+                widget = pn.widgets.ToggleGroup(
+                    name=title,
+                    options=[-2, 0, 2],
+                    value=[-2, 0, 2],
+                    button_type='default',
+                    width=200,
+                    sizing_mode='fixed',
+                    margin=(0, 20),
+                    align='center',
+                )
+
             else:
                 lo, hi = df[col].min(), df[col].max()
                 if col in cols_allow_neg:
@@ -132,15 +181,22 @@ class CrossFilteringHist(param.Parameterized):
                 edges = np.linspace(lo, hi, num_bins + 1)
                 mids = (edges[:-1] + edges[1:]) / 2
                 width = (edges[1] - edges[0]) * 0.9
-                widget = pn.widgets.RangeSlider(name=title, start=lo, end=hi, value=(lo, hi), step=(hi - lo) / 100 or 1, width=300)
-                widget.visible = False
+                widget = pn.widgets.RangeSlider(
+                    name=title, start=lo, end=hi,
+                    value=(lo, hi),
+                    step=(hi - lo) / 100 or 1,
+                    width=300
+                )
+                widget.visible = True
             widget.param.watch(self._on_change, 'value')
 
             fig = figure(title=title, width=300, height=240, tools="reset")
+            fig.toolbar.logo = None
             fig.xaxis.axis_label = title
             fig.yaxis.axis_label = "Events"
             fig.x_range = Range1d(edges[0], edges[-1])
             fig.y_range = Range1d(0, 1)
+            self.max_y_seen[title] = 1
 
             if col != "sum_lep_charge":
                 fig.add_tools(BoxSelectTool(dimensions="width"))
@@ -154,10 +210,7 @@ class CrossFilteringHist(param.Parameterized):
                 fig.add_layout(right_shadow)
                 self.shadows[title] = (left_shadow, right_shadow)
 
-            initial_data = {"x": mids}
-            for proc in PROCESS_LIST:
-                initial_data[proc] = np.zeros_like(mids)
-            source = ColumnDataSource(data=initial_data)
+            source = ColumnDataSource(data={"x": mids, **{p: np.zeros_like(mids) for p in PROCESS_LIST}})
             self.sources[title] = source
 
             fig.vbar_stack(
@@ -192,30 +245,19 @@ class CrossFilteringHist(param.Parameterized):
                 mask &= df[col].between(*widget.value)
         return mask
 
-    def _on_change(self, *events):
-        mask = self._compute_mask()
-        sel = self.proc_sel.value
-
-        signal_count = int(((df.Process == "ZH→inv") & mask).sum())
-        background_count = int((df.Process.isin([k for k in PROCESS_COLORS if k != "ZH→inv"]) & mask).sum())
-        significance = signal_count / np.sqrt(background_count) if background_count else 0
-        significance_pct = int(min(significance, 5) / 5 * 100)
-
-        self._update_pie_chart(mask, sel)
-        self._update_count_div(mask, significance, significance_pct)
-        self._update_histograms(mask, sel, events)
-
     def _update_pie_chart(self, mask: pd.Series, selected_processes: list):
         counts = {proc: int(((df.Process == proc) & mask).sum()) for proc in selected_processes}
         pie_df = pd.Series(counts).reset_index(name='value').rename(columns={'index': 'process'})
         pie_df = pie_df[pie_df.value > 0]
         pie_df['angle'] = pie_df['value'] / pie_df['value'].sum() * 2 * pi
         pie_df['color'] = pie_df['process'].map(PROCESS_COLORS)
+
         self.pie_source.data = pie_df.to_dict(orient='list')
 
     def _update_count_div(self, mask: pd.Series, significance: float, significance_pct: int):
         total_events = int(mask.sum())
         html = [f"<h3>Total Events: {total_events}</h3>"]
+
         for proc in self.processes:
             count = int(((df.Process == proc) & mask).sum())
             pct = int(count / FULL_COUNTS[proc] * 100) if FULL_COUNTS[proc] else 0
@@ -228,6 +270,7 @@ class CrossFilteringHist(param.Parameterized):
                 f"</div></div>"
             )
             html.append(bar)
+
         sig_bar = (
             f"<div style='display:flex;align-items:center;margin:8px 0 4px;'>"
             f"<span style='width:1em;'>↯</span>"
@@ -237,6 +280,7 @@ class CrossFilteringHist(param.Parameterized):
             f"</div></div>"
         )
         html.append(sig_bar)
+
         self.count_div.text = ''.join(html)
 
     def _update_histograms(self, mask: pd.Series, selected_processes: list, events):
@@ -259,31 +303,17 @@ class CrossFilteringHist(param.Parameterized):
                 left_shadow.right = widget.value[0]
                 right_shadow.left = widget.value[1]
 
-            if col == "sum_lep_charge":
-                heights = np.sum([data[proc] for proc in selected_processes], axis=0) if selected_processes else []
-                ymax = heights.max() if len(heights) else 0
-                fig.y_range.start = 0
-                fig.y_range.end = max(ymax * 1.1, 1)
-                continue
-
-            if hasattr(widget, 'start') and widget in [e.obj for e in events]:
-                freeze = not (
-                    np.isclose(widget.value[0], widget.start) and np.isclose(widget.value[1], widget.end)
-                )
-            else:
-                freeze = False
-
-            if not freeze:
-                vals = df[col][mask] if selected_processes else []
-                xmin, xmax = (vals.min(), vals.max()) if len(vals) else (edges[0], edges[-1])
-                heights = np.sum([data[proc] for proc in selected_processes], axis=0) if selected_processes else []
-                ymax = heights.max() if len(heights) else 0
-                fig.x_range.start, fig.x_range.end = xmin, xmax
-                fig.y_range.start, fig.y_range.end = 0, max(ymax * 1.1, 1)
+            heights = np.sum([data[proc] for proc in selected_processes], axis=0) if selected_processes else []
+            if len(heights):
+                current_max = heights.max()
+                if current_max > self.max_y_seen[title] * 1.05 or current_max < self.max_y_seen[title] * 0.95:
+                    fig.y_range.end = max(current_max * 1.1, 1)
+                    self.max_y_seen[title] = fig.y_range.end
 
     def _make_layout(self) -> pn.Column:
         rows = []
         titles = list(PLOT_COLUMNS)
+
         for i in range(0, len(titles), 2):
             col1 = pn.Column(self.figs[titles[i]][0], self.widgets[titles[i]])
             if i + 1 < len(titles):
@@ -293,10 +323,11 @@ class CrossFilteringHist(param.Parameterized):
                 rows.append(col1)
 
         top_row = pn.Row(
-            pn.Column(self.count_div, self.proc_sel),
+            pn.Column(self.count_div, self.proc_sel, self.slider_toggle),
             pn.Column(self.pie),
             sizing_mode="stretch_width"
         )
+
         return pn.Column(top_row, *rows, sizing_mode="stretch_width")
 
 def main():
