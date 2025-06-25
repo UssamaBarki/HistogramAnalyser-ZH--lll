@@ -36,7 +36,7 @@ df = pd.concat([
     load_and_tag("Non-resonant_ll.csv", "Non-resonant ℓℓ")
 ], ignore_index=True).dropna()
 
-# Standardize column names for convenience
+# Standardise column names for convenience
 df.rename(columns={
     "mll": "Mll",
     "ETmiss": "MET",
@@ -148,7 +148,7 @@ class CrossFilteringHist(param.Parameterized):
 
         # Toggle button to show/hide sliders
         self.slider_toggle = pn.widgets.Toggle(
-            name='Show Filters', button_type='primary', value=True
+            name='Hide / Un-hide Sliders', button_type='primary', value=True
         )
         self.slider_toggle.param.watch(self._toggle_sliders, 'value')
 
@@ -158,7 +158,7 @@ class CrossFilteringHist(param.Parameterized):
         # Dictionary to hold figures and related histogram bin info keyed by plot title
         self.figs = {}
 
-        # Initialize pie chart and histograms
+        # Initialise pie chart and histograms
         self._init_pie_chart()
         self._init_histograms()
 
@@ -182,7 +182,7 @@ class CrossFilteringHist(param.Parameterized):
 
     def _init_pie_chart(self):
         """
-        Initialize pie chart to show process contributions.
+        Initialise pie chart to show process contributions.
         """
         self.pie_source = ColumnDataSource(dict(process=[], value=[], angle=[], color=[]))
         self.pie = figure(
@@ -204,7 +204,7 @@ class CrossFilteringHist(param.Parameterized):
 
     def _init_histograms(self):
         """
-        Initialize histogram figures and their corresponding filter widgets.
+        Initialise histogram figures and their corresponding filter widgets.
         """
         # Columns with known negative values in Zjets to consider for slider min range
         cols_allow_neg = ["lep1_pt", "Mll", "frac_pt_diff", "MET_sig"]
