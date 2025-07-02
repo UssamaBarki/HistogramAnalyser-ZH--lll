@@ -28,7 +28,7 @@ pn.config.raw_css.append("""
 
 /* Active (selected) toggle buttons */
 .bk-btn-group .bk-btn.bk-active {
-    background-color: green !important;
+    background-color: #2ca02c !important;
     color: white !important;
 }
 """)
@@ -54,7 +54,7 @@ def load_and_tag(path: str, label: str) -> pd.DataFrame:
 
 # Load and concatenate all datasets with respective process labels
 df = pd.concat([
-    load_and_tag("DM_200.csv", "ZH→inv"),
+    load_and_tag("DM_200.csv", "Z + Dark Matter"),
     load_and_tag("ZZ.csv", "ZZ"),
     load_and_tag("WZ.csv", "WZ"),
     load_and_tag("Z+jets.csv", "Zjets"),
@@ -98,11 +98,11 @@ PLOT_COLUMNS = {
 
 # Colors for each process
 PROCESS_COLORS = {
-    "ZH→inv": "forestgreen",
-    "ZZ": "firebrick",
-    "WZ": "dodgerblue",
-    "Zjets": "goldenrod",
-    "Non-resonant ℓℓ": "dimgray"
+    "Z + Dark Matter": "#d62728",    # Crimson Red / Medium Red
+    "ZZ": "#2ca02c",        # Medium Green / Forest Green
+    "WZ": "#ff7f0e",        # Dark Orange/Safety Orange      or #e69f00
+    "Zjets": "#1e90ff",     # Dodger blue x
+    "Non-resonant ℓℓ": "#808080" # Gray
 }
 
 PROCESS_LIST = list(PROCESS_COLORS.keys())
@@ -203,8 +203,8 @@ class CrossFilteringHist(param.Parameterized):
         sel = self.proc_sel.value
 
         # Calculate signal and background counts for significance metric
-        signal_count = int(((df.Process == "ZH→inv") & mask).sum())
-        background_count = int((df.Process.isin([k for k in PROCESS_COLORS if k != "ZH→inv"]) & mask).sum())
+        signal_count = int(((df.Process == "Z + Dark Matter") & mask).sum())
+        background_count = int((df.Process.isin([k for k in PROCESS_COLORS if k != "Z + Dark Matter"]) & mask).sum())
         significance = signal_count / np.sqrt(background_count) if background_count else 0
         significance_pct = int(min(significance, 5) / 5 * 100)
 
@@ -457,8 +457,9 @@ class CrossFilteringHist(param.Parameterized):
             f"        <div style='width:100%; height:100%; background:#f5f5f5; border:1px solid #aaa;'></div>"
             f"        <div style='position:absolute; top:0; left:0; height:100%; width:{significance_pct}%; background:black;'></div>"
             f"      </div>"
+
             f"      <div style='display:flex; justify-content:space-between; font-size:0.75em; margin-top:2px; color:#444;'>"
-            f"        <span>0σ</span><span>3σ</span><span>5σ</span>"
+            f"        <span>0σ</span><span>1σ</span><span>2σ</span><span>3σ</span><span>4σ</span><span>5σ</span>"
             f"      </div>"
             f"    </div>"
             f"  </div>"
