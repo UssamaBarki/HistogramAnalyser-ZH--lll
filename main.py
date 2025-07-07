@@ -54,11 +54,11 @@ def load_and_tag(path: str, label: str) -> pd.DataFrame:
 
 # Load and concatenate all datasets with respective process labels
 df = pd.concat([
-    load_and_tag("DM_200.csv", "Z + Dark Matter"),
-    load_and_tag("ZZ.csv", "ZZ"),
-    load_and_tag("WZ.csv", "WZ"),
-    load_and_tag("Z+jets.csv", "Zjets"),
-    load_and_tag("Non-resonant_ll.csv", "Non-resonant ℓℓ")
+    load_and_tag("data/DM_200.csv", "Z + Dark Matter"),
+    load_and_tag("data/ZZ.csv", "ZZ"),
+    load_and_tag("data/WZ.csv", "WZ"),
+    load_and_tag("data/Z+jets.csv", "Zjets"),
+    load_and_tag("data/Non-resonant_ll.csv", "Non-resonant ℓℓ")
 ], ignore_index=True).dropna()
 
 # Standardise column names for convenience
@@ -548,14 +548,5 @@ class CrossFilteringHist(param.Parameterized):
 
         return pn.Column(top_row, row1, row2, sizing_mode="stretch_width")
 
-def main():
-    """
-       Entry point to launch the Bokeh Panel server.
-       """
-    # Instantiate the dashboard and expose its layout for rendering
-    dashboard = CrossFilteringHist()
-    dashboard.layout.servable()
-    pn.serve(dashboard.layout, title="Cross Filtering Histogram Dashboard")
-
-if __name__ == "__main__":
-    main()
+dashboard = CrossFilteringHist()
+dashboard.layout.servable()
