@@ -54,11 +54,11 @@ def load_and_tag(path: str, label: str) -> pd.DataFrame:
 
 # Load and concatenate all datasets with respective process labels
 df = pd.concat([
-    load_and_tag("data/DM_200.csv", "Z + Dark Matter"),
-    load_and_tag("data/ZZ.csv", "ZZ"),
-    load_and_tag("data/WZ.csv", "WZ"),
-    load_and_tag("data/Z+jets.csv", "Zjets"),
-    load_and_tag("data/Non-resonant_ll.csv", "Non-resonant ℓℓ")
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/DM_200.csv", "Z + Dark Matter"),
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/ZZ.csv", "ZZ"),
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/WZ.csv", "WZ"),
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Z+jets.csv", "Zjets"),
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Non-resonant_ll.csv", "Non-resonant ℓℓ")
 ], ignore_index=True).dropna()
 
 # Standardise column names for convenience
@@ -91,19 +91,28 @@ PLOT_COLUMNS = {
     "Frac. pₜ diff": ("frac_pt_diff", (0, 0.3)),
     "Lead ℓ pₜ [GeV]": ("lep1_pt", (30, df.lep1_pt.max())),
     "Sublead ℓ pₜ [GeV]": ("lep2_pt", (20, df.lep2_pt.max())),
-    "B-tags": ("BTags", (0, int(df.BTags.max()))),
+    "B-jets": ("BTags", (0, int(df.BTags.max()))),
     "Sum lep charge": ("sum_lep_charge", None),
 }
 
-
-# Colors for each process
-PROCESS_COLORS = {
-    "Z + Dark Matter": "#d62728",    # Crimson Red / Medium Red
-    "ZZ": "#2ca02c",        # Medium Green / Forest Green
-    "WZ": "#ff7f0e",        # Dark Orange/Safety Orange      or #e69f00
-    "Zjets": "#1e90ff",     # Dodger blue x
-    "Non-resonant ℓℓ": "#808080" # Gray
+NORMAL_COLORS = {
+    "Z + Dark Matter": "#d62728",    # Crimson Red
+    "ZZ": "#2ca02c",                 # Medium Green
+    "WZ": "#ff7f0e",                 # Dark Orange
+    "Zjets": "#1e90ff",              # Dodger Blue
+    "Non-resonant ℓℓ": "#808080"     # Gray
 }
+
+COLORBLIND_SAFE_COLORS = {
+    "Z + Dark Matter": "#cc79a7",    # Bright Purple (CB safe)
+    "ZZ": "#009e73",                 # Bluish Green (CB safe)
+    "WZ": "#e69f00",                 # Orange (CB safe)
+    "Zjets": "#56b4e9",              # Sky Blue (CB safe)
+    "Non-resonant ℓℓ": "#999999"     # Gray (CB safe)
+}
+
+PROCESS_COLORS = NORMAL_COLORS.copy()  # Default
+
 
 PROCESS_LIST = list(PROCESS_COLORS.keys())
 
@@ -149,6 +158,13 @@ class CrossFilteringHist(param.Parameterized):
         self.labels = {}
         self.max_y_seen = {}
 
+        self.cb_toggle = pn.widgets.Toggle(
+            name="Colorblind-Friendly Mode",
+            value=False,  # Off by default
+            button_type='primary'
+        )
+        self.cb_toggle.param.watch(self._update_color_scheme, 'value')
+
         # Toggle buttons for processes
         self.proc_sel = pn.widgets.ToggleGroup(
             name="Processes",
@@ -192,6 +208,36 @@ class CrossFilteringHist(param.Parameterized):
 
         # Compose layout
         self.layout = self._make_layout()
+
+    def _update_color_scheme(self, event=None):
+        """
+        Update color scheme based on toggle value.
+        This updates glyph colors in-place for faster responsiveness.
+        """
+        global PROCESS_COLORS
+
+        # Update color mapping globally
+        PROCESS_COLORS = COLORBLIND_SAFE_COLORS.copy() if self.cb_toggle.value else NORMAL_COLORS.copy()
+
+        # Update pie chart colors
+        if 'color' in self.pie_source.data:
+            new_colors = [PROCESS_COLORS.get(proc, "#cccccc") for proc in self.pie_source.data['process']]
+            self.pie_source.data['color'] = new_colors
+
+        # Update histogram bar colors: each stacked layer is a separate glyph
+        for title, (fig, edges, mids, width) in self.figs.items():
+            # Collect all vbar glyph renderers (each is one stack layer)
+            vbars = [r for r in fig.renderers if hasattr(r, 'glyph') and r.glyph.__class__.__name__ == 'VBar']
+
+            # The number of vbars should match number of processes
+            for idx, glyph_renderer in enumerate(vbars):
+                proc = PROCESS_LIST[idx]
+                new_color = PROCESS_COLORS.get(proc, "#000000")
+                glyph_renderer.glyph.fill_color = new_color
+                glyph_renderer.glyph.line_color = None  # No border
+
+        # Trigger update for pie chart + counts + histograms
+        self._on_change()
 
 
     def _on_change(self, *events):
@@ -260,12 +306,11 @@ class CrossFilteringHist(param.Parameterized):
 
         for title, (col, _) in PLOT_COLUMNS.items():
             if col == "sum_lep_charge":
-                # Categorical variable with fixed bins and checkboxes
+                # Categorical variable with fixed bins and checkboxes (as before)
                 edges = np.array([-3, -1, 1, 3])
                 mids = np.array([-2, 0, 2])
                 width = 2
 
-                # Centered, spaced toggle buttons for sum_lep_charge
                 widget = pn.widgets.ToggleGroup(
                     name=title,
                     options=[-2, 0, 2],
@@ -274,15 +319,32 @@ class CrossFilteringHist(param.Parameterized):
                     width=200,
                     height=31,
                     sizing_mode='fixed',
-                    margin=(0,0,0,50), # top, right, bottom, **left**
+                    margin=(0, 0, 0, 50),
+                    align='center',
+                )
+
+            elif col == "BTags":
+                # New categorical toggle group for BTags with 0 and 1 bins
+                edges = np.array([-0.5, 0.5, 1.5])
+                mids = np.array([0, 1])
+                width = 0.95  # width similar style to sum_lep_charge
+
+                widget = pn.widgets.ToggleGroup(
+                    name=title,
+                    options=[0, 1],
+                    value=[0, 1],
+                    button_type='success',
+                    width=120,
+                    height=31,
+                    sizing_mode='fixed',
+                    margin=(0, 0, 0, 50),
                     align='center',
                 )
 
             else:
-                # Calculate slider range: default min/max from full df
+                # Continuous slider for other variables
                 lo, hi = df[col].min(), df[col].max()
 
-                # If this col is in cols_allow_neg, check Zjets subset for min negative values
                 if col in cols_allow_neg:
                     zjets_vals = df.loc[df.Process == "Zjets", col]
                     if len(zjets_vals):
@@ -294,7 +356,6 @@ class CrossFilteringHist(param.Parameterized):
                 mids = (edges[:-1] + edges[1:]) / 2
                 width = (edges[1] - edges[0]) * 0.9
 
-                # Range slider for continuous variables
                 widget = pn.widgets.RangeSlider(
                     name=title,
                     start=lo,
@@ -304,20 +365,18 @@ class CrossFilteringHist(param.Parameterized):
                     width=260,
                     bar_color="lightgrey",
                     format='0.0',
-                    #visible=True,
-                    #sizing_mode="fixed", or "stretch_width"
-                    #tooltips=True,
-                    margin=(0, 0, 0, 42), # top, right, bottom, left
+                    margin=(0, 0, 0, 42),
                 )
                 widget.visible = True
+
             # Watch for changes to slider or checkbox to update filtering
             widget.param.watch(self._on_change, 'value')
 
             # Create histogram figure
             fig = figure(title=title, width=300, height=240, tools="reset")
-            fig.toolbar_location = None # Turned off bokeh toolbar
+            fig.toolbar_location = None
             fig.toolbar.logo = None
-            fig.toolbar.active_drag = None  # Do not activate BoxSelectTool by default
+            fig.toolbar.active_drag = None
             fig.xaxis.axis_label = title
             fig.yaxis.axis_label = "Events"
             fig.x_range = Range1d(edges[0], edges[-1])
@@ -325,7 +384,7 @@ class CrossFilteringHist(param.Parameterized):
             self.max_y_seen[title] = 1
 
             # For continuous variables add box select tools and shaded filters
-            if col != "sum_lep_charge":
+            if col not in ["sum_lep_charge", "BTags"]:
                 fig.add_tools(BoxSelectTool(dimensions="width"))
                 cb = self._make_select_cb(title, edges, widget)
                 for evt in (SelectionGeometry, DoubleTap, Reset):
@@ -349,9 +408,14 @@ class CrossFilteringHist(param.Parameterized):
             self.widgets[title] = widget
             self.figs[title] = (fig, edges, mids, width)
 
+            # Set custom tickers and labels for sum_lep_charge and BTags
             if col == "sum_lep_charge":
                 fig.xaxis.ticker = [-2, 0, 2]
-                fig.xaxis.major_label_overrides = {-2: "2", 0: "0", 2: "2"}
+                fig.xaxis.major_label_overrides = {-2: "-2", 0: "0", 2: "2"}
+
+            elif col == "BTags":
+                fig.xaxis.ticker = [0, 1]
+                fig.xaxis.major_label_overrides = {0: "0", 1: "1"}
 
     def _make_select_cb(self, title, edges, widget):
         """
@@ -379,6 +443,8 @@ class CrossFilteringHist(param.Parameterized):
             widget = self.widgets[title]
             if col == "sum_lep_charge":
                 # For categorical, filter exact matches
+                mask &= df[col].isin(widget.value)
+            elif col == "BTags":
                 mask &= df[col].isin(widget.value)
             else:
                 # For continuous, filter by slider range
@@ -528,25 +594,34 @@ class CrossFilteringHist(param.Parameterized):
             """
             ### Instructions
 
-            - Use **toggle buttons** to select/deselect processes.
+            - Use green colored **toggle buttons** to select/deselect processes.
             - Adjust **sliders** to apply range-based filters.
-            - Double-click a histogram to reset its range. 
+            - **Double-click** a histogram to reset its range.
+            - For people with color deficiency, click the **toggle button** at the top right corner to change the colors.
             """,
-            width=300,  # Fixed width
-            sizing_mode=None,  # Avoid using stretch_width with fixed width
+            width=600,  # Fixed width
+            sizing_mode=None,
             margin=(10, 10, 10, 10)
         )
 
-        # Top row with counts, process selection checkboxes, pie chart, and instructions
+        # Row for right-aligned toggle
+        toggle_row = pn.Row(
+            pn.Spacer(),
+            self.cb_toggle,
+            sizing_mode="stretch_width",
+            height=40,
+            margin=(0,0, 0, 1335)  # Top, Right, Bottom, Left
+        )
+
+        # Main row with counts, pie chart, and instructions
         top_row = pn.Row(
-            pn.Column(self.count_div, self.proc_sel), #self.slider_toggle),
-            #pn.Column(self.pie),
-            pn.Column(self.pie, margin=(12, 0, 0, 0)),  # top, right, bottom, left
+            pn.Column(self.count_div, self.proc_sel),
+            pn.Column(self.pie, margin=(12, 0, 0, 0)),
             instruction_text,
             sizing_mode="stretch_width"
         )
 
-        return pn.Column(top_row, row1, row2, sizing_mode="stretch_width")
+        return pn.Column(toggle_row, top_row, row1, row2, sizing_mode="stretch_width")
 
 dashboard = CrossFilteringHist()
 dashboard.layout.servable()
