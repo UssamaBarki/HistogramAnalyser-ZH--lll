@@ -626,4 +626,3 @@ class CrossFilteringHist(param.Parameterized):
 
 dashboard = CrossFilteringHist()
 dashboard.layout.servable()
-pn.serve(dashboard.layout, title="Cross Filtering Histogram Dashboard")
