@@ -623,5 +623,7 @@ class CrossFilteringHist(param.Parameterized):
 
         return pn.Column(toggle_row, top_row, row1, row2, sizing_mode="stretch_width")
 
+
 dashboard = CrossFilteringHist()
 dashboard.layout.servable()
+pn.serve(dashboard.layout, title="Cross Filtering Histogram Dashboard")
