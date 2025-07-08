@@ -28,12 +28,3 @@ Using the Histogram Analyzer:
 7. Reset Filters: Each histogram has a reset button (top-right corner) to revert cuts applied to that particular feature.
 
 8. Lepton Charge Filter (Bottom-right): Use the dedicated toggle buttons to include or exclude events based on the sum of lepton charges.
-
-
-
-
-
-FYI
-* Documentation of each class and function is provided with the code. 
-
-* Ignore the warning "WARNING:bokeh.core.validation.check:W-1005 (FIXED_SIZING_MODE): 'fixed' sizing mode requires width and height to be set: CheckboxButtonGroup(id='p2104', ...)". It doesnot effect the code working, will be later removed using a patch. 
