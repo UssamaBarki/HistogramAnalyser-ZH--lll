@@ -5,7 +5,7 @@ from math import pi
 from bokeh.plotting import figure
 from bokeh.models import (
     ColumnDataSource, Div, Range1d, BoxAnnotation,
-    BoxSelectTool, Label
+    BoxSelectTool
 )
 from bokeh.events import SelectionGeometry, DoubleTap, Reset
 from bokeh.transform import cumsum
@@ -111,8 +111,7 @@ COLORBLIND_SAFE_COLORS = {
     "Non-resonant ℓℓ": "#999999"     # Gray (CB safe)
 }
 
-PROCESS_COLORS = NORMAL_COLORS.copy()  # Default
-
+PROCESS_COLORS = NORMAL_COLORS.copy()  # Default Color
 
 PROCESS_LIST = list(PROCESS_COLORS.keys())
 
@@ -174,24 +173,9 @@ class CrossFilteringHist(param.Parameterized):
             width=400,
             height=31,
             sizing_mode='fixed',
-            #stylesheets = [{         # Size change for process box
-            #"button": {
-                #"minWidth": "60px",  # reduce from default ~100px
-                #"maxWidth": "60px",  # lock width
-                #"padding": "2px 6px",
-                #"fontSize": "11px"
-            #}
-        #}]
         )
 
-
         self.proc_sel.param.watch(self._on_change, 'value')
-
-        # Toggle button to show/hide sliders    (Hidden Now)
-        #self.slider_toggle = pn.widgets.Toggle(
-            #name='Hide / Un-hide Sliders', button_type='primary', value=True
-        #)
-        #self.slider_toggle.param.watch(self._toggle_sliders, 'value')
 
         # Dictionary to hold widgets (sliders or checkbox groups) keyed by plot title
         self.widgets = {}
@@ -199,7 +183,7 @@ class CrossFilteringHist(param.Parameterized):
         # Dictionary to hold figures and related histogram bin info keyed by plot title
         self.figs = {}
 
-        # Initialise pie chart and histograms
+        # Initialize pie chart and histograms
         self._init_pie_chart()
         self._init_histograms()
 
@@ -234,7 +218,7 @@ class CrossFilteringHist(param.Parameterized):
                 proc = PROCESS_LIST[idx]
                 new_color = PROCESS_COLORS.get(proc, "#000000")
                 glyph_renderer.glyph.fill_color = new_color
-                glyph_renderer.glyph.line_color = None  # No border
+                glyph_renderer.glyph.line_color = None
 
         # Trigger update for pie chart + counts + histograms
         self._on_change()
@@ -261,7 +245,7 @@ class CrossFilteringHist(param.Parameterized):
 
     def _toggle_sliders(self, event):
         """
-        Allows the user to turn on/off sliders (currently unused)
+        Allows the user to turn on/off sliders
         """
         show = event.new
         for title, widget in self.widgets.items():
@@ -273,18 +257,17 @@ class CrossFilteringHist(param.Parameterized):
 
     def _init_pie_chart(self):
         """
-        Initialises pie chart to show process contributions.
+        Initializes pie chart to show process contributions.
         """
         self.pie_source = ColumnDataSource(dict(process=[], value=[], angle=[], color=[]))
         self.pie = figure(
-            height=245, width=245,    # 230 previously
+            height=245, width=245,
             toolbar_location=None,
             tools="hover",
             tooltips="@process: @value",
             title="Share In Total Events"
         )
         self.pie.title.align = "center"
-        #self.pie.title.text_font_size = "19pt"  # or "21pt" to match h3 roughly
         self.pie.title.text_font_style = "bold"
         self.pie.toolbar.logo = None
         self.pie.wedge(
@@ -299,14 +282,14 @@ class CrossFilteringHist(param.Parameterized):
 
     def _init_histograms(self):
         """
-        Initialises histogram figures and their corresponding filter widgets.
+        Initializes histogram figures and their corresponding filter widgets.
         """
         # Columns with known negative values in Zjets to consider for slider min range
         cols_allow_neg = ["lep1_pt", "Mll", "frac_pt_diff", "MET_sig"]
 
         for title, (col, _) in PLOT_COLUMNS.items():
             if col == "sum_lep_charge":
-                # Categorical variable with fixed bins and checkboxes (as before)
+                #  Categorical toggle group for Sum Lepton Charge
                 edges = np.array([-3, -1, 1, 3])
                 mids = np.array([-2, 0, 2])
                 width = 2
@@ -324,10 +307,10 @@ class CrossFilteringHist(param.Parameterized):
                 )
 
             elif col == "BTags":
-                # New categorical toggle group for BTags with 0 and 1 bins
+                # Categorical toggle group for BTags
                 edges = np.array([-0.5, 0.5, 1.5])
                 mids = np.array([0, 1])
-                width = 0.95  # width similar style to sum_lep_charge
+                width = 0.95
 
                 widget = pn.widgets.ToggleGroup(
                     name=title,
@@ -481,14 +464,6 @@ class CrossFilteringHist(param.Parameterized):
             count = int(((df.Process == proc) & mask).sum())
             pct = int(count / FULL_COUNTS[proc] * 100) if FULL_COUNTS[proc] else 0
 
-            # Percentage label above the bar
-            #html.append(
-                #f"<div style='display:flex;justify-content:flex-end;"
-                #f"font-size:0.75em;margin-bottom:0px;color:#444;"
-                #f"margin-left:calc(140px + 2em);margin-right:0;'>"
-                #f"<span>{pct}%</span></div>"
-            #)
-
             # Bar with count
             bar = (
                 f"<div style='display: flex; align-items: center; margin: 4px 0; width: 100%;'>"
@@ -503,15 +478,6 @@ class CrossFilteringHist(param.Parameterized):
             )
 
             html.append(bar)
-
-            # Only under last bar: 0% 50% 100% scale
-            #if i == len(self.processes) - 1:
-                #html.append(
-                    #f"<div style='display:flex;justify-content:space-between;"
-                    #f"font-size:0.75em;margin-top:-6px;color:#444;"
-                    #f"margin-left:calc(140px + 2em);margin-right:0;'>"
-                    #f"<span>0%</span><span>50%</span><span>100%</span></div>"
-                #)
 
         sig_bar = (
             f"<div style='display:flex; align-items:center; margin:8px 0 4px; width:100%; flex-direction:column;'>"
@@ -599,7 +565,7 @@ class CrossFilteringHist(param.Parameterized):
             - **Double-click** a histogram to reset its range.
             - For people with color deficiency, click the **toggle button** at the top right corner to change the colors.
             """,
-            width=600,  # Fixed width
+            width=600,
             sizing_mode=None,
             margin=(10, 10, 10, 10)
         )
@@ -610,7 +576,7 @@ class CrossFilteringHist(param.Parameterized):
             self.cb_toggle,
             sizing_mode="stretch_width",
             height=40,
-            margin=(0,0, 0, 1335)  # Top, Right, Bottom, Left
+            margin=(0,0, 0, 1335)
         )
 
         # Main row with counts, pie chart, and instructions
