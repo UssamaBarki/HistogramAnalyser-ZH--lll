@@ -570,13 +570,17 @@ class CrossFilteringHist(param.Parameterized):
             margin=(10, 10, 10, 10)
         )
 
-        # Row for right-aligned toggle
-        toggle_row = pn.Row(
-            pn.Spacer(),
-            self.cb_toggle,
-            sizing_mode="stretch_width",
-            height=40,
-            margin=(0,0, 0, 1335)
+        # Combined title and toggle in one row
+        title_row = pn.Row(
+            pn.pane.HTML(
+                "<h1 style='margin: 0; padding-top: 10px;'>Histogram Analyzer to Find Dark Matter</h1>",
+                width=1220
+            ),
+            pn.Spacer(width=100),
+            pn.Column(self.cb_toggle, margin=(10, 0, 0, 0)),
+            height=60,
+            sizing_mode=None,
+            margin=(0, 0, 0, 0)
         )
 
         # Main row with counts, pie chart, and instructions
@@ -587,7 +591,7 @@ class CrossFilteringHist(param.Parameterized):
             sizing_mode="stretch_width"
         )
 
-        return pn.Column(toggle_row, top_row, row1, row2, sizing_mode="stretch_width")
+        return pn.Column(title_row, top_row, row1, row2, sizing_mode="stretch_width")
 
 
 dashboard = CrossFilteringHist()
