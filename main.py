@@ -74,9 +74,6 @@ df.rename(columns={
     "N_bjets": "BTags"
 }, inplace=True)
 
-# Add a constant channel column (used in analysis/plots)
-df["Channel"] = "ℓℓ"
-
 # ---------------------------------------------------------------
 # Configuration for histogram plotting and process colors
 # ---------------------------------------------------------------
