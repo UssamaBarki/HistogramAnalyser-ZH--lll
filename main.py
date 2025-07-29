@@ -155,7 +155,7 @@ class CrossFilteringHist(param.Parameterized):
         self.max_y_seen = {}
 
         self.cb_toggle = pn.widgets.Toggle(
-            name="Colorblind-Friendly Mode",
+            name="Color Vision Deficiency (CVD) - Mode",
             value=False,  # Off by default
             button_type='primary'
         )
@@ -560,7 +560,7 @@ class CrossFilteringHist(param.Parameterized):
             - Use green colored **toggle buttons** to select/deselect processes.
             - Adjust **sliders** to apply range-based filters.
             - **Double-click** a histogram to reset its range.
-            - For people with color deficiency, click the **toggle button** at the top right corner to change the colors.
+            - For people with color deficiency, click the **Color Vision Deficiency (CVD) - Mode** toggle button at the top right corner to change the colors.
             """,
             width=600,
             sizing_mode=None,
