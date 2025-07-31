@@ -58,21 +58,10 @@ df = pd.concat([
     load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/ZZ.csv", "ZZ"),
     load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/WZ.csv", "WZ"),
     load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Z+jets.csv", "Zjets"),
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Non-resonant_ll.csv", "Non-resonant ℓℓ")
+    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Non-resonant_ll.csv", "Non-resonant ll")
 ], ignore_index=True).dropna()
 
-# Standardise column names for convenience
-df.rename(columns={
-    "mll": "Mll",
-    "ETmiss": "MET",
-    "ETmiss_over_HT": "MET_sig",
-    "lead_lep_pt": "lep1_pt",
-    "sublead_lep_pt": "lep2_pt",
-    "dRll": "deltaR_ll",
-    "dphi_pTll_ETmiss": "dphi_ll_met",
-    "fractional_pT_difference": "frac_pt_diff",
-    "N_bjets": "BTags"
-}, inplace=True)
+
 
 # ---------------------------------------------------------------
 # Configuration for histogram plotting and process colors
@@ -80,16 +69,16 @@ df.rename(columns={
 
 # Define columns to plot with default cut ranges
 PLOT_COLUMNS = {
-    "Dilepton mass [GeV]": ("Mll", (76, 106)),
-    "Missing ET [GeV]": ("MET", (90, df.MET.max())),
-    "MET/HT (sig.)": ("MET_sig", (0.9, df.MET_sig.max())),
-    "ΔR(ℓℓ)": ("deltaR_ll", (0, 1.8)),
-    "Δϕ(ℓℓ,MET)": ("dphi_ll_met", (2.6, df.dphi_ll_met.max())),
-    "Frac. pₜ diff": ("frac_pt_diff", (0, 0.3)),
-    "Lead ℓ pₜ [GeV]": ("lep1_pt", (30, df.lep1_pt.max())),
-    "Sublead ℓ pₜ [GeV]": ("lep2_pt", (20, df.lep2_pt.max())),
-    "B-jets": ("BTags", (0, int(df.BTags.max()))),
-    "Sum lep charge": ("sum_lep_charge", None),
+    "Mll [GeV]": ("mll", (df["mll"].min(), df["mll"].max())),
+    "MET [GeV]": ("ETmiss", (df["ETmiss"].min(), df["ETmiss"].max())),
+    "MET/HT (sig.)": ("ETmiss_over_HT", (df["ETmiss_over_HT"].min(), df["ETmiss_over_HT"].max())),
+    "ΔR(ll)": ("dRll", (df["dRll"].min(), df["dRll"].max())),
+    "Δϕ(ll,MET)": ("dphi_pTll_ETmiss", (df["dphi_pTll_ETmiss"].min(), df["dphi_pTll_ETmiss"].max())),
+    "Frac. pₜ diff": ("fractional_pT_difference", (df["fractional_pT_difference"].min(), df["fractional_pT_difference"].max())),
+    "Lead lep pₜ [GeV]": ("lead_lep_pt", (df["lead_lep_pt"].min(), df["lead_lep_pt"].max())),
+    "Sub-lead lep pₜ [GeV]": ("sublead_lep_pt", (df["sublead_lep_pt"].min(), df["sublead_lep_pt"].max())),
+    "B-jets": ("N_bjets", (df["N_bjets"].min(), df["N_bjets"].max())),
+    "Sum lep charge": ("sum_lep_charge", (df["sum_lep_charge"].min(), df["sum_lep_charge"].max())),
 }
 
 NORMAL_COLORS = {
@@ -97,7 +86,7 @@ NORMAL_COLORS = {
     "ZZ": "#2ca02c",                 # Medium Green
     "WZ": "#ff7f0e",                 # Dark Orange
     "Zjets": "#1e90ff",              # Dodger Blue
-    "Non-resonant ℓℓ": "#808080"     # Gray
+    "Non-resonant ll": "#808080"     # Gray
 }
 
 COLORBLIND_SAFE_COLORS = {
@@ -105,7 +94,7 @@ COLORBLIND_SAFE_COLORS = {
     "ZZ": "#009e73",                 # Bluish Green (CB safe)
     "WZ": "#e69f00",                 # Orange (CB safe)
     "Zjets": "#56b4e9",              # Sky Blue (CB safe)
-    "Non-resonant ℓℓ": "#999999"     # Gray (CB safe)
+    "Non-resonant ll": "#999999"     # Gray (CB safe)
 }
 
 PROCESS_COLORS = NORMAL_COLORS.copy()  # Default Color
@@ -240,18 +229,6 @@ class CrossFilteringHist(param.Parameterized):
         self._update_histograms(mask, sel, events)
 
 
-    def _toggle_sliders(self, event):
-        """
-        Allows the user to turn on/off sliders
-        """
-        show = event.new
-        for title, widget in self.widgets.items():
-            if title == "Sum lep charge":
-                # sum lep charge toggle always visible
-                continue
-            widget.visible = show
-
-
     def _init_pie_chart(self):
         """
         Initializes pie chart to show process contributions.
@@ -282,7 +259,7 @@ class CrossFilteringHist(param.Parameterized):
         Initializes histogram figures and their corresponding filter widgets.
         """
         # Columns with known negative values in Zjets to consider for slider min range
-        cols_allow_neg = ["lep1_pt", "Mll", "frac_pt_diff", "MET_sig"]
+        cols_allow_neg = ["lead_lep_pt", "mll", "fractional_pT_difference", "ETmiss_over_HT"]
 
         for title, (col, _) in PLOT_COLUMNS.items():
             if col == "sum_lep_charge":
@@ -303,7 +280,7 @@ class CrossFilteringHist(param.Parameterized):
                     align='center',
                 )
 
-            elif col == "BTags":
+            elif col == "N_bjets":
                 # Categorical toggle group for BTags
                 edges = np.array([-0.5, 0.5, 1.5])
                 mids = np.array([0, 1])
@@ -364,7 +341,7 @@ class CrossFilteringHist(param.Parameterized):
             self.max_y_seen[title] = 1
 
             # For continuous variables add box select tools and shaded filters
-            if col not in ["sum_lep_charge", "BTags"]:
+            if col not in ["sum_lep_charge", "N_bjets"]:
                 fig.add_tools(BoxSelectTool(dimensions="width"))
                 cb = self._make_select_cb(title, edges, widget)
                 for evt in (SelectionGeometry, DoubleTap, Reset):
@@ -393,7 +370,7 @@ class CrossFilteringHist(param.Parameterized):
                 fig.xaxis.ticker = [-2, 0, 2]
                 fig.xaxis.major_label_overrides = {-2: "-2", 0: "0", 2: "2"}
 
-            elif col == "BTags":
+            elif col == "N_bjets":
                 fig.xaxis.ticker = [0, 1]
                 fig.xaxis.major_label_overrides = {0: "0", 1: "1"}
 
@@ -424,7 +401,7 @@ class CrossFilteringHist(param.Parameterized):
             if col == "sum_lep_charge":
                 # For categorical, filter exact matches
                 mask &= df[col].isin(widget.value)
-            elif col == "BTags":
+            elif col == "N_bjets":
                 mask &= df[col].isin(widget.value)
             else:
                 # For continuous, filter by slider range
