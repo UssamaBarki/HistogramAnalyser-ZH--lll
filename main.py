@@ -548,7 +548,7 @@ class CrossFilteringHist(param.Parameterized):
         title_row = pn.Row(
             pn.pane.HTML(
                 "<h1 style='margin: 0; padding-top: 10px;'>Histogram Analyzer to Find Dark Matter</h1>",
-                width=1220
+                width=1160
             ),
             pn.Spacer(width=100),
             pn.Column(self.cb_toggle, margin=(10, 0, 0, 0)),
