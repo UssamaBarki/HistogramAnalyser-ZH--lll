@@ -319,7 +319,7 @@ class CrossFilteringHist(param.Parameterized):
                     step=(hi - lo) / 100 or 1,
                     width=260,
                     bar_color="lightgrey",
-                    format='0.0',
+                    format='0.00',
                     margin=(0, 0, 0, 42),
                 )
                 widget.visible = True
