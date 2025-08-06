@@ -28,5 +28,5 @@
 
 9. B-Jets Filter (Bottom-right): Use the dedicated toggle buttons to include or exclude b-jets.
 
-10. Color Defeciency Toggle (Top-right): Use the colorblind friendly toggle to switch to colorblind friendly version of the histogram analyzer. 
+10. Color Vision Defeciency (CVD) Toggle (Top-right): Use the CVD toggle to switch to color vision defeciency version of the histogram analyzer. 
 
