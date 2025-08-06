@@ -54,14 +54,12 @@ def load_and_tag(path: str, label: str) -> pd.DataFrame:
 
 # Load and concatenate all datasets with respective process labels
 df = pd.concat([
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/DM_200.csv", "Z + Dark Matter"),
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/ZZ.csv", "ZZ"),
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/WZ.csv", "WZ"),
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Z+jets.csv", "Zjets"),
-    load_and_tag("https://atlas-opendata.web.cern.ch/atlas-opendata/samples/2020/csv/DM_ML_notebook/Non-resonant_ll.csv", "Non-resonant ll")
+    load_and_tag("Data/DM_200.csv", "Z + Dark Matter"),
+    load_and_tag("Data/ZZ.csv", "ZZ"),
+    load_and_tag("Data/WZ.csv", "WZ"),
+    load_and_tag("Data/Z+jets.csv", "Zjets"),
+    load_and_tag("Data/Non-resonant_ll.csv", "Non-resonant ll")
 ], ignore_index=True).dropna()
-
-
 
 # ---------------------------------------------------------------
 # Configuration for histogram plotting and process colors
