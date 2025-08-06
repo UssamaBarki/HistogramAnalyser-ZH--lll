@@ -7,6 +7,9 @@ WORKDIR /app
 # Copy only the necessary app files
 COPY main.py requirements.txt ./
 
+# Copy the local data folder into the container
+COPY Data/ ./Data/
+
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
